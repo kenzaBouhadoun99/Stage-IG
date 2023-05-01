@@ -273,9 +273,22 @@ bouton_enregistrer2 = Button(cadre2, image=icon_save, command=save_image)
 bouton_enregistrer2.pack(side="right", padx=15, pady=15)
 
 '''Ouvrir'''
+import tkinter as tk
+from tkinter import ttk
+from tkinter import filedialog
+import pandas as pd
+
+excel_table = None
+filename=""
+from os.path import basename
+
+excel_table = None
+
 def open_fileMask():
+    global excel_table
     # Ouvrir la boîte de dialogue pour sélectionner un fichier Excel
     filename = filedialog.askopenfilename(filetypes=[("Fichiers Excel", "*.xlsx")])
+    print("le nom dans la fonction est", basename(filename))
 
     if filename:
         # Si un fichier est sélectionné, ouvrir le fichier et afficher son contenu dans le cadre7
@@ -300,15 +313,20 @@ def open_fileMask():
         # Activer l'édition des cellules
         def edit_cell(event):
             # Vérifier que la sélection est sur une cellule (et non une ligne ou une colonne entière)
-            if excel_table.identify_region(event.x, event.y) == "cell":
+            region = excel_table.identify_region(event.x, event.y)
+            if region == "cell":
                 # Obtenir l'index de la ligne et de la colonne sélectionnées
-                row = int(excel_table.selection()[0][1:])
-                col = columns.index(excel_table.identify_column(event.x)) # Utilisation de la liste des colonnes
-                # Ouvrir l'éditeur de cellule
-                cell_value = excel_table.item(excel_table.selection()[0], option='values')[col]
-                excel_table.item(excel_table.selection()[0], values=[f"{cell_value} (en édition)"])
-                excel_table.update_idletasks()
-                excel_table.edit(excel_table.selection()[0], col)
+                selection = excel_table.selection()[0]
+                row = int(selection[1:])
+                column = excel_table.identify_column(event.x)
+                if column in columns:
+                    col = columns.index(column)
+                    # Ouvrir l'éditeur de cellule
+                    cell_value = excel_table.item(selection, option='values')[col]
+                    excel_table.item(selection, values=[f"{cell_value} (en édition)"])
+                    excel_table.update_idletasks()
+                    excel_table.edit(selection, col)
+
         
         excel_table.bind("<Double-1>", edit_cell)
 
@@ -319,10 +337,18 @@ def open_fileMask():
 
         excel_table.pack()
 
-        
-        
+        # stocker le nom du fichier sélectionné dans excel_table
+        excel_table.filename = filename
 
-       
+def get_selected_filename():
+    global excel_table
+    if excel_table.filename is None:
+        return "Aucun fichier n'a été ouvert."
+    else:
+        print("le nom du fichier est ",excel_table.filename)
+        return excel_table.filename
+
+         
 
 
 
@@ -333,6 +359,7 @@ icon_open2 = icon_open2.zoom(1)
 
 bouton_ouvrir2 = Button(cadre2, image=icon_open2, command=open_fileMask)
 bouton_ouvrir2.pack(side="right", padx=15, pady=15)
+
 
 '''Plus'''
 #partie scrolle 
@@ -352,16 +379,63 @@ mycanvas.create_window((0,0), window=myframe, anchor="nw")
 option_count = 0
 checkbutton_list = []
 var_list = []
+option_count=0
+frame7 = None
 
-# fonction pour ajouter un Checkbutton
+import openpyxl
+
 def add_checkbutton():
-    global option_count
+    global option_count, col_count ,frame7
     option_count += 1
     var = IntVar()  # création d'une variable de contrôle pour chaque Checkbutton
     var_list.append(var)
     checkbutton = Checkbutton(myframe, text=f"Masque {option_count}", variable=var)
     checkbutton.grid(row=(option_count-1)//6, column=(option_count-1)%6, padx=2, pady=2)
     checkbutton_list.append(checkbutton)  # ajout du Checkbutton et de sa variable de contrôle à la liste
+
+    # Ajouter une colonne au fichier Excel
+    wb = openpyxl.load_workbook(get_selected_filename())
+    ws = wb.active
+    col_count = ws.max_column + 1  # obtenir le numéro de la nouvelle colonne
+    ws.cell(row=1, column=col_count, value=f"Masque {option_count}")  # ajouter l'en-tête de la colonne
+    for i in range(2, option_count+2):  # ajouter les cases vides de la nouvelle colonne
+        ws.cell(row=i, column=col_count, value="")
+    wb.save(get_selected_filename())
+
+    # Mettre à jour le tableau
+    update_table()
+
+def update_table():
+    global col_count, label_list ,frame7, excel_table
+    label_list = []
+    wb = openpyxl.load_workbook(get_selected_filename())
+    ws = wb.active
+    col_count = ws.max_column
+    
+    # Ajouter les nouvelles colonnes
+    new_columns = []
+    for j in range(excel_table["columns"], col_count+1):
+        header = ws.cell(row=1, column=j).value
+        excel_table.column(header, width=50)
+        excel_table.heading(header, text=header)
+        new_columns.append(header)
+    
+    # Mettre à jour la liste des colonnes dans excel_table
+    excel_table["columns"] += tuple(new_columns)
+    
+    # Ajouter les nouvelles données
+    for row in ws.iter_rows(min_row=2, max_col=col_count, values_only=True):
+        excel_table.insert("", "end", values=row)
+    
+    wb.close()
+
+
+
+
+
+
+
+
 
 # charger l'icône "plus.png" en tant qu'objet PhotoImage et la réduire de moitié
 icon_plus = PhotoImage(file="images/plus.png")
@@ -397,7 +471,6 @@ label2.pack(side="left", padx=65, pady=15)
 
 
 
-'''Classification'''
 '''Classification'''
 
 '''Save'''
